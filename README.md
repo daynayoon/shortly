@@ -2,7 +2,6 @@
 
 A full-stack URL shortening service with click analytics. Users can shorten any URL and track detailed statistics including country, device, browser, and click history for each link.
 
-**Live Demo:** [shortly.vercel.app](https://shortly.vercel.app) · **API:** [shortly-api.onrender.com](https://shortly-api.onrender.com/api/health)
 
 ---
 
