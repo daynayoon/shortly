@@ -14,15 +14,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    // When user login, Spring Security calls this method and find the user
+    // Used by JwtAuthFilter to load user after token validation
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         com.shortly.model.User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
+        // No password needed — authentication is via Google OAuth + JWT
         return User.builder()
                 .username(user.getEmail())
-                .password(user.getPassword())
+                .password("")
                 .roles("USER")
                 .build();
     }

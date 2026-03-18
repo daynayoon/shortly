@@ -19,10 +19,13 @@ public class User {
     private String email;
 
     @Column(nullable = false)
-    private String password;
-
-    @Column(nullable = false)
     private String name;
+
+    @Column(unique = true, nullable = false)
+    private String googleId;
+
+    @Column(length = 500)
+    private String profilePicture;
 
     private LocalDateTime createdAt;
 
