@@ -2,6 +2,8 @@ package com.shortly.service;
 
 import com.shortly.model.Click;
 import com.shortly.model.Url;
+import com.shortly.exception.AccessDeniedException;
+import com.shortly.exception.NotFoundException;
 import com.shortly.model.User;
 import com.shortly.repository.ClickRepository;
 import com.shortly.repository.UrlRepository;
@@ -27,12 +29,10 @@ public class ExportService {
      */
     public byte[] exportCsv(String shortCode, User user) {
         Url url = urlRepository.findByShortCode(shortCode)
-                .orElseThrow(() -> new IllegalArgumentException("URL not found"));
+                .orElseThrow(() -> new NotFoundException("URL not found"));
 
-
-        // verify ownership
         if (!url.getUser().getId().equals(user.getId())) {
-            throw new SecurityException("Access denied");
+            throw new AccessDeniedException("Access denied");
         }
 
         List<Click> clicks = clickRepository.findByUrlId(url.getId());
