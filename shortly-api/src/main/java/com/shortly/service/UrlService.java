@@ -1,7 +1,10 @@
 package com.shortly.service;
 
+import com.shortly.config.CacheConstants;
 import com.shortly.dto.ShortenRequest;
+import com.shortly.dto.UrlClickCount;
 import com.shortly.dto.UrlResponse;
+import com.shortly.exception.AccessDeniedException;
 import com.shortly.exception.NotFoundException;
 import com.shortly.model.Url;
 import com.shortly.model.User;
@@ -13,8 +16,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,9 +32,6 @@ public class UrlService {
 
     @Value("${app.base-url}")
     private String baseUrl;
-
-    private static final String CACHE_PREFIX = "url:";
-    private static final long CACHE_TTL_HOURS = 24;
 
     public UrlResponse shorten(ShortenRequest request, User user) {
         Url url = new Url();
@@ -45,18 +48,25 @@ public class UrlService {
         saved = urlRepository.save(saved);
 
         // cache as "id|originalUrl" (RedirectService format)
-        String cacheKey = CACHE_PREFIX + shortCode;
-        redisTemplate.opsForValue().set(cacheKey, saved.getId() + "|" + saved.getOriginalUrl(), CACHE_TTL_HOURS, TimeUnit.HOURS);
-        
+        String cacheKey = CacheConstants.URL_PREFIX + shortCode;
+        redisTemplate.opsForValue().set(cacheKey, saved.getId() + "|" + saved.isActive() + "|" + saved.getOriginalUrl(), CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
+
         return toResponse(saved, 0L);
     }
 
     // Get all URLs created by a user, ordered by creation date descending.
     public List<UrlResponse> getUserUrls(User user) {
-        return urlRepository.findByUserId(user.getId()).stream()
-            .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-            .map(url -> toResponse(url, clickRepository.countByUrlId(url.getId())))
-            .toList();
+        List<Url> urls = urlRepository.findByUserId(user.getId());
+        if (urls.isEmpty()) return List.of();
+
+        List<Long> urlIds = urls.stream().map(Url::getId).toList();
+        Map<Long, Long> clickCounts = clickRepository.countByUrlIdIn(urlIds).stream()
+                .collect(Collectors.toMap(UrlClickCount::getUrlId, UrlClickCount::getClickCount));
+
+        return urls.stream()
+                .sorted(Comparator.comparing(Url::getCreatedAt).reversed())
+                .map(url -> toResponse(url, clickCounts.getOrDefault(url.getId(), 0L)))
+                .toList();
     }
 
     // Delete a URL if it belongs to the user. Also remove from Redis cache.
@@ -65,10 +75,10 @@ public class UrlService {
                 .orElseThrow(() -> new NotFoundException("URL not found"));
 
         if (!url.getUser().getId().equals(user.getId())) {
-            throw new SecurityException("Access denied");
+            throw new AccessDeniedException("Access denied");
         }
 
-        redisTemplate.delete(CACHE_PREFIX + url.getShortCode());
+        redisTemplate.delete(CacheConstants.URL_PREFIX + url.getShortCode());
         urlRepository.delete(url);
     }
 
@@ -78,25 +88,25 @@ public class UrlService {
                 .orElseThrow(() -> new NotFoundException("URL not found"));
 
         if (!url.getUser().getId().equals(user.getId())) {
-            throw new SecurityException("Access denied");
+            throw new AccessDeniedException("Access denied");
         }
 
         url.setActive(!url.isActive());
         urlRepository.save(url);
 
         // invalidate cache so RedirectService re-checks active status
-        redisTemplate.delete(CACHE_PREFIX + url.getShortCode());
+        redisTemplate.delete(CacheConstants.URL_PREFIX + url.getShortCode());
     }
 
     private UrlResponse toResponse(Url url, long clickCount) {
         return new UrlResponse(
-            url.getId(),
-            baseUrl + "/" + url.getShortCode(),
-            url.getOriginalUrl(),
-            url.getTitle(),
-            url.isActive(),
-            url.getCreatedAt(),
-            clickCount 
+                url.getId(),
+                baseUrl + "/" + url.getShortCode(),
+                url.getOriginalUrl(),
+                url.getTitle(),
+                url.isActive(),
+                url.getCreatedAt(),
+                clickCount
         );
     }
 }
