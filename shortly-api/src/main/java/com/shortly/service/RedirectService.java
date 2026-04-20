@@ -1,4 +1,6 @@
 package com.shortly.service;
+
+import com.shortly.config.CacheConstants;
 import com.shortly.exception.GoneException;
 import com.shortly.exception.NotFoundException;
 import com.shortly.model.Url;
@@ -11,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
-
 @Service
 @RequiredArgsConstructor
 public class RedirectService {
@@ -20,42 +21,36 @@ public class RedirectService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ClickService clickService;
 
-    private static final String CACHE_PREFIX = "url:";
-    private static final long CACHE_TTL_HOURS = 24;
-
     public String getOriginalUrl(String shortCode, HttpServletRequest request) {
-        String cacheKey = CACHE_PREFIX + shortCode;
+        String cacheKey = CacheConstants.URL_PREFIX + shortCode;
 
-        // opsForValue() -> key-value method of Redis -> value: original URL or null
         String cached = redisTemplate.opsForValue().get(cacheKey);
-        // If cache miss → query DB by shortCode
         if (cached != null) {
-            String[] parts = cached.split("\\|", 2);
-            if (parts.length < 2) {
-                redisTemplate.delete(cacheKey); // delete broken cache
+            String[] parts = cached.split("\\|", 3);
+            if (parts.length < 3) {
+                redisTemplate.delete(cacheKey); // delete broken cache entry
             } else {
+                boolean isActive = Boolean.parseBoolean(parts[1]);
+                if (!isActive) throw new GoneException("This link has been deactivated");
                 Long urlId = Long.parseLong(parts[0]);
-                String originalUrl = parts[1];
+                String originalUrl = parts[2];
                 clickService.recordClick(urlId, request);
                 return originalUrl;
             }
         }
 
-        // If not found → throw NotFoundException (404)
         Url url = urlRepository.findByShortCode(shortCode)
                 .orElseThrow(() -> new NotFoundException("Short URL not found: " + shortCode));
 
-        // If expired or inactive → throw GoneException (410)
         if (!url.isActive() || (url.getExpiresAt() != null && url.getExpiresAt().isBefore(LocalDateTime.now()))) {
             throw new GoneException("This link has expired or been deactivated");
         }
 
-        redisTemplate.opsForValue().set(cacheKey, url.getId() + "|" + url.getOriginalUrl(), CACHE_TTL_HOURS, TimeUnit.HOURS);
+        // cache as "id|isActive|originalUrl"
+        String cacheValue = url.getId() + "|" + url.isActive() + "|" + url.getOriginalUrl();
+        redisTemplate.opsForValue().set(cacheKey, cacheValue, CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
 
-        // Call clickService.recordClick() asynchronously
         clickService.recordClick(url.getId(), request);
-
-        // Return the original URL string
         return url.getOriginalUrl();
     }
 }
