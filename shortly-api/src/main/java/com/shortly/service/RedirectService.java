@@ -24,20 +24,22 @@ public class RedirectService {
     public String getOriginalUrl(String shortCode, HttpServletRequest request) {
         String cacheKey = CacheConstants.URL_PREFIX + shortCode;
 
-        String cached = redisTemplate.opsForValue().get(cacheKey);
-        if (cached != null) {
-            String[] parts = cached.split("\\|", 3);
-            if (parts.length < 3) {
-                redisTemplate.delete(cacheKey); // delete broken cache entry
-            } else {
-                boolean isActive = Boolean.parseBoolean(parts[1]);
-                if (!isActive) throw new GoneException("This link has been deactivated");
-                Long urlId = Long.parseLong(parts[0]);
-                String originalUrl = parts[2];
-                clickService.recordClick(urlId, request);
-                return originalUrl;
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                String[] parts = cached.split("\\|", 3);
+                if (parts.length >= 3) {
+                    boolean isActive = Boolean.parseBoolean(parts[1]);
+                    if (!isActive) throw new GoneException("This link has been deactivated");
+                    Long urlId = Long.parseLong(parts[0]);
+                    clickService.recordClick(urlId, request);
+                    return parts[2];
+                }
+                redisTemplate.delete(cacheKey);
             }
-        }
+        } catch (GoneException e) {
+            throw e;
+        } catch (Exception ignored) {}
 
         Url url = urlRepository.findByShortCode(shortCode)
                 .orElseThrow(() -> new NotFoundException("Short URL not found: " + shortCode));
@@ -46,9 +48,10 @@ public class RedirectService {
             throw new GoneException("This link has expired or been deactivated");
         }
 
-        // cache as "id|isActive|originalUrl"
-        String cacheValue = url.getId() + "|" + url.isActive() + "|" + url.getOriginalUrl();
-        redisTemplate.opsForValue().set(cacheKey, cacheValue, CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
+        try {
+            String cacheValue = url.getId() + "|" + url.isActive() + "|" + url.getOriginalUrl();
+            redisTemplate.opsForValue().set(cacheKey, cacheValue, CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
+        } catch (Exception ignored) {}
 
         clickService.recordClick(url.getId(), request);
         return url.getOriginalUrl();

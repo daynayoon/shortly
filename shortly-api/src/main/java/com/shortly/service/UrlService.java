@@ -40,16 +40,18 @@ public class UrlService {
         url.setUser(user);
         url.setActive(true);
 
-        // save first to get the generated ID
-        Url saved = urlRepository.save(url);
+        // saveAndFlush to immediately get the generated ID from DB
+        url.setShortCode("tmp");
+        Url saved = urlRepository.saveAndFlush(url);
 
         String shortCode = Base62Encoder.encode(saved.getId());
         saved.setShortCode(shortCode);
         saved = urlRepository.save(saved);
 
-        // cache as "id|originalUrl" (RedirectService format)
-        String cacheKey = CacheConstants.URL_PREFIX + shortCode;
-        redisTemplate.opsForValue().set(cacheKey, saved.getId() + "|" + saved.isActive() + "|" + saved.getOriginalUrl(), CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
+        try {
+            String cacheKey = CacheConstants.URL_PREFIX + shortCode;
+            redisTemplate.opsForValue().set(cacheKey, saved.getId() + "|" + saved.isActive() + "|" + saved.getOriginalUrl(), CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
+        } catch (Exception ignored) {}
 
         return toResponse(saved, 0L);
     }
@@ -78,7 +80,7 @@ public class UrlService {
             throw new AccessDeniedException("Access denied");
         }
 
-        redisTemplate.delete(CacheConstants.URL_PREFIX + url.getShortCode());
+        try { redisTemplate.delete(CacheConstants.URL_PREFIX + url.getShortCode()); } catch (Exception ignored) {}
         urlRepository.delete(url);
     }
 
@@ -94,8 +96,7 @@ public class UrlService {
         url.setActive(!url.isActive());
         urlRepository.save(url);
 
-        // invalidate cache so RedirectService re-checks active status
-        redisTemplate.delete(CacheConstants.URL_PREFIX + url.getShortCode());
+        try { redisTemplate.delete(CacheConstants.URL_PREFIX + url.getShortCode()); } catch (Exception ignored) {}
     }
 
     private UrlResponse toResponse(Url url, long clickCount) {
