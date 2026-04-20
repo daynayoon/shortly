@@ -1,6 +1,7 @@
 package com.shortly.repository;
 
 import java.util.List;
+import com.shortly.dto.UrlClickCount;
 import com.shortly.model.Click;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -11,6 +12,9 @@ public interface ClickRepository extends JpaRepository<Click, Long> {
     List<Click> findByUrlId(Long urlId);
 
     long countByUrlId(Long urlId);
+
+    @Query("SELECT c.url.id AS urlId, COUNT(c) AS clickCount FROM Click c WHERE c.url.id IN :urlIds GROUP BY c.url.id")
+    List<UrlClickCount> countByUrlIdIn(@Param("urlIds") List<Long> urlIds);
 
     // Group by date → for time-series chart (last 30 days)
     @Query("SELECT CAST(c.clickedAt AS date), COUNT(c) " +
