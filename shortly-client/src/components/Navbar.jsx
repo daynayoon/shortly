@@ -1,7 +1,8 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 export default function Navbar() {
   const navigate = useNavigate()
+  const location = useLocation()
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
   })()
@@ -12,34 +13,44 @@ export default function Navbar() {
     navigate('/login')
   }
 
+  const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? 'U'
+
   return (
-    <nav className="border-b border-slate-200 bg-white">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="font-semibold text-indigo-600 tracking-tight text-lg">
-          Shortly
-        </Link>
-        <div className="flex items-center gap-4">
-          {user ? (
-            <>
-              <Link to="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">
-                Dashboard
-              </Link>
-              <button onClick={logout} className="text-sm text-slate-500 hover:text-slate-900">
-                Logout
-              </button>
-              {user.profilePicture && (
-                <img src={user.profilePicture} alt="" className="w-7 h-7 rounded-full" />
-              )}
-            </>
-          ) : (
+    <nav style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', position: 'sticky', top: 0, zIndex: 100 }}>
+      <Link to="/" style={{ fontSize: 20, fontWeight: 700, color: '#6366f1', letterSpacing: '-0.5px', textDecoration: 'none' }}>
+        Shortly
+      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {user ? (
+          <>
             <Link
-              to="/login"
-              className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700"
+              to="/dashboard"
+              style={{ fontSize: 14, fontWeight: location.pathname === '/dashboard' ? 600 : 500, color: location.pathname === '/dashboard' ? '#6366f1' : '#334155', textDecoration: 'none' }}
             >
-              Sign in
+              Dashboard
             </Link>
-          )}
-        </div>
+            <button
+              onClick={logout}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#64748b', fontFamily: 'Inter, sans-serif', padding: '6px 0' }}
+            >
+              Logout
+            </button>
+            {user.profilePicture ? (
+              <img src={user.profilePicture} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+            ) : (
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 600 }}>
+                {initial}
+              </div>
+            )}
+          </>
+        ) : (
+          <Link
+            to="/login"
+            style={{ background: '#6366f1', color: '#fff', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
+          >
+            Sign in
+          </Link>
+        )}
       </div>
     </nav>
   )

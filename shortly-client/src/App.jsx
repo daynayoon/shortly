@@ -10,7 +10,7 @@ import Analytics from './pages/Analytics.jsx'
 export default function App() {
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
