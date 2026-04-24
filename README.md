@@ -274,8 +274,10 @@ app.base-url=http://localhost:8080
 ```bash
 cd shortly-api
 mvn spring-boot:run -Dspring-boot.run.profiles=local
-# API available at http://localhost:8080
 ```
+> **PowerShell users:** use `cd shortly-api; mvn spring-boot:run -Dspring-boot.run.profiles=local`
+
+API available at **http://localhost:8080**
 
 ### 2. Frontend
 
@@ -340,3 +342,9 @@ REDIS_PASSWORD    your_redis_password
 JWT_SECRET        your_32_char_secret
 APP_BASE_URL      https://shortly-api.onrender.com
 ```
+
+---
+
+## If Time Permits
+
+- **Country click analytics**: Country data currently shows as "Unknown" in Analytics. Requires integrating [MaxMind GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) free database for IP → country lookup. Look up the IP in `ClickService.recordClick()` and store the result via `click.setCountry()`.
