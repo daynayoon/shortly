@@ -24,6 +24,11 @@ public class RedirectService {
     public String getOriginalUrl(String shortCode, HttpServletRequest request) {
         String cacheKey = CacheConstants.URL_PREFIX + shortCode;
 
+        // Extract request data eagerly — HttpServletRequest is invalid after async dispatch
+        String ip = extractIp(request);
+        String userAgent = request.getHeader("User-Agent");
+        String referrer = request.getHeader("Referer");
+
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
@@ -32,7 +37,7 @@ public class RedirectService {
                     boolean isActive = Boolean.parseBoolean(parts[1]);
                     if (!isActive) throw new GoneException("This link has been deactivated");
                     Long urlId = Long.parseLong(parts[0]);
-                    clickService.recordClick(urlId, request);
+                    clickService.recordClick(urlId, ip, userAgent, referrer);
                     return parts[2];
                 }
                 redisTemplate.delete(cacheKey);
@@ -53,7 +58,15 @@ public class RedirectService {
             redisTemplate.opsForValue().set(cacheKey, cacheValue, CacheConstants.URL_TTL_HOURS, TimeUnit.HOURS);
         } catch (Exception ignored) {}
 
-        clickService.recordClick(url.getId(), request);
+        clickService.recordClick(url.getId(), ip, userAgent, referrer);
         return url.getOriginalUrl();
+    }
+
+    private String extractIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

@@ -3,7 +3,6 @@ import com.shortly.model.Click;
 import com.shortly.model.Url;
 import com.shortly.repository.ClickRepository;
 import com.shortly.repository.UrlRepository;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -19,14 +18,9 @@ public class ClickService {
 
     // async for not blocking redirect response
     @Async
-    public void recordClick(Long urlId, HttpServletRequest request) {
+    public void recordClick(Long urlId, String ip, String userAgent, String referrer) {
         Url url = urlRepository.findById(urlId).orElse(null);
         if (url == null) return;
-
-        String ip = extractIp(request);
-        // Parse User-Agent header → device type (mobile/desktop/tablet), browser
-        String userAgent = request.getHeader("User-Agent");
-        String referrer = request.getHeader("Referer"); // Parse Referer header
 
         // save new click to db
         Click click = new Click();
@@ -37,15 +31,6 @@ public class ClickService {
         click.setReferrer(referrer);
 
         clickRepository.save(click);
-    }
-
-    // get the first Ip
-    private String extractIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private String parseDeviceType(String ua) {
